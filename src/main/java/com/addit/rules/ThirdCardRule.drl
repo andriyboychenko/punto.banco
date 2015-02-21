@@ -1,0 +1,140 @@
+package com.addit.rules
+
+import com.addit.test.entities.ThirdCard;
+import com.addit.test.entities.HandValue;
+import com.addit.test.entities.Card;
+import com.addit.test.Dealer;
+
+// rules defined according to http://www.ildado.com/baccarat_rules.html
+
+rule "Rule 1 (there is at least one hand with 8 or 9)"
+	salience 100
+when
+
+	$dealer : Dealer()
+	$phand : HandValue(	playerHand && !analysed )
+	$bhand : HandValue(	!playerHand && !analysed )
+	
+	eval( 
+			$phand.getHandValue() == 8 ||
+			$phand.getHandValue() == 9 ||
+			$bhand.getHandValue() == 8 ||
+			$bhand.getHandValue() == 9
+		 )
+		
+then
+
+	//System.out.println( drools.getRule().getName() );
+	ThirdCard $card = new ThirdCard(-1, -1);
+	insert( $card );
+	
+	$phand.setAnalysed(true);
+	$bhand.setAnalysed(true);
+	update($phand);
+	update($bhand);
+end
+
+rule "Rule 2 (player needs third card because his hand is less or equal to 5 )"
+	salience 90
+when
+
+	$dealer : Dealer()
+	$phand : HandValue(	playerHand && !analysed )
+	$bhand : HandValue(	!playerHand && !analysed )
+	
+	eval( 
+			$phand.getHandValue() <= 5 
+		 )
+		
+then
+	//System.out.println( drools.getRule().getName() );
+	
+	Card $third = $dealer.dealNextCard();
+	ThirdCard $card = new ThirdCard($third.getWeigth(), -1);
+	insert( $card );
+	
+	$phand.setAnalysed(true);
+	$bhand.setAnalysed(true);
+	update($phand);
+	update($bhand);
+end
+
+
+rule "Rule 3 (Banker needs third card because his has not 6 or more and player does not draws the card)"
+	salience 80
+when
+
+	$dealer : Dealer()
+	$phand : HandValue(	playerHand && !analysed )
+	$bhand : HandValue(	!playerHand && !analysed )
+	
+	eval( 
+			$phand.getHandValue() > 5 
+				&&
+			$bhand.getHandValue() <= 5 
+		 )
+		
+then
+	//System.out.println( drools.getRule().getName() );
+
+	Card $third = $dealer.dealNextCard();
+	
+	ThirdCard $card = new ThirdCard(-1 , $third.getWeigth());
+	insert( $card );
+	
+	$phand.setAnalysed(true);
+	$bhand.setAnalysed(true);
+	update($phand);
+	update($bhand);
+
+end
+
+
+rule "Rule 4 (The player needs third card and banker too based on specific rules)"
+	salience 10
+when
+
+	$dealer : Dealer()
+	$phand : HandValue(	playerHand  )
+	$bhand : HandValue(	!playerHand  )
+	
+	$pthirdcard : ThirdCard()
+	
+	eval(
+			$pthirdcard.getBankerThirdCard() == -1
+			&&
+			(
+				(
+					$bhand.getHandValue() == 6 && 
+					($pthirdcard.getPlayerThirdCard() == 6 || $pthirdcard.getPlayerThirdCard() == 7)
+				)
+					||
+				(
+					$bhand.getHandValue() == 5 && 
+					($pthirdcard.getPlayerThirdCard() >= 4 && $pthirdcard.getPlayerThirdCard() <= 7)
+				) 
+					||
+				(
+					$bhand.getHandValue() == 4 && 
+					($pthirdcard.getPlayerThirdCard() >= 2 || $pthirdcard.getPlayerThirdCard() <= 7)
+				) 
+					||
+				(
+					$bhand.getHandValue() == 3 && $pthirdcard.getPlayerThirdCard() != 8
+				) 
+					||
+				(
+					$bhand.getHandValue() <= 2 && $pthirdcard.getPlayerThirdCard() >= 0
+				) 
+			)
+		)
+then
+	//System.out.println( drools.getRule().getName() );
+
+	Card $third = $dealer.dealNextCard();
+	$pthirdcard.setBankerThirdCard($third.getWeigth());
+	
+	update($pthirdcard);
+
+end
+
